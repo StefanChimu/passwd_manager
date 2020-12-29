@@ -21,8 +21,9 @@ int port;
 int main (int argc, char *argv[])
 {
   char* buf = (char*)malloc(BUFF_SIZE);
+  char* r = (char*)malloc(BUFF_SIZE); 	/* pentru response voi folosi char r 
+  										pentru a se vedea clar ca se citeste raspunsul dat de sv*/
   struct sockaddr_in server;	// structura folosita pentru conectare 
-  int nr=0;
   int sd;			// descriptorul de socket
 
   /* exista toate argumentele in linia de comanda? */
@@ -96,9 +97,6 @@ int main (int argc, char *argv[])
 
 	    /* citirea raspunsului dat de server 
 	       (apel blocant pina cind serverul raspunde) */
-	    /* pentru response voi folosi char r pentru a se vedea clar ca se citeste raspunsul dat de sv*/
-
-	    char* r = (char*)malloc(BUFF_SIZE);
 
 	    if (read (sd, r, BUFF_SIZE) < 0)
 	    {
@@ -111,6 +109,8 @@ int main (int argc, char *argv[])
 	    printf ("[client] Mesajul primit este: %s\n", r);
 	  }
 
+		buf = (char*)malloc(BUFF_SIZE);
+  		r = (char*)malloc(BUFF_SIZE);
     }
 
   /* inchidem conexiunea, am terminat */

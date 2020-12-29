@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 /* portul folosit */
 
@@ -26,6 +28,7 @@ typedef struct thData{
 int quit_var = 0;
 
 static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
+int register_user(char*, struct thData);
 void raspunde(void *);
 
 int main ()
@@ -145,7 +148,7 @@ static void *treat(void * arg)
 
 void raspunde(void *arg)
 {
-    char* msg = (char*)malloc(BUFF_SIZE);;
+    char* msg = (char*)malloc(BUFF_SIZE);
   	struct thData tdL; 
   	tdL= *((struct thData*)arg);
 
@@ -163,22 +166,134 @@ void raspunde(void *arg)
         quit_var++;
         return;
     }
-
-  	printf ("[Thread %d] Mesajul a fost receptionat...%s\n",tdL.idThread, msg);
-  		      
-  	/*pregatim mesajul de raspuns */
-  	printf("[Thread %d] Trimitem mesajul inapoi...%s\n",tdL.idThread, msg);
-  		      
-  		      
-  	/* returnam mesajul clientului */
-  	if (write (tdL.cl, msg, BUFF_SIZE) <= 0)
-  	{
-  		 printf("[Thread %d] ",tdL.idThread);
-  		 perror ("[Thread] Eroare la write() catre client.\n");
-  	}
-  	else
+	else if (strncmp(msg, "register", 8) == 0)
     {
-  		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+	  	printf ("[Thread %d] register() called\n",tdL.idThread);
+	  		      
+	  	char* register_data = (char*)malloc(BUFF_SIZE);
+
+	  	register_data = strtok(msg, ":");
+	  	register_data = strtok(NULL, ":");
+
+	  	if (register_user(register_data, tdL) == -1)
+	  	{
+	  		printf("[debug] register_user failed! Wrong syntax!\n");
+	  	}
     }
+    else
+    {
+	   	printf ("[Thread %d] Mesajul a fost receptionat...%s\n",tdL.idThread, msg);
+	  		      
+	  	/*pregatim mesajul de raspuns */
+	  	printf("[Thread %d] Trimitem mesajul inapoi...%s\n",tdL.idThread, msg);
+	  		      
+	  		      
+	  	/* returnam mesajul clientului */
+	  	if (write (tdL.cl, msg, BUFF_SIZE) <= 0)
+	  	{
+	  		 printf("[Thread %d] ",tdL.idThread);
+	  		 perror ("[Thread] Eroare la write() catre client.\n");
+	  	}
+	  	else
+	    {
+	  		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+	    }
+    }
+}
+
+int register_user(char* string, struct thData tdL)
+{
+	/* string-ul de input va fi de forma username;password */
+
+	char* response = (char*)malloc(BUFF_SIZE);
+	char* uname = (char*)malloc(BUFF_SIZE);
+	char* passwd = (char*)malloc(BUFF_SIZE);
+	char* p = (char*)malloc(BUFF_SIZE);
+
+	/* parsam input-ul */
+
+	p = strtok(string, ";");
+
+	if (p == NULL)
+	{
+		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	strcpy(uname, p);
+
+	p = strtok(NULL, ";");
+
+	if (p == NULL)
+	{
+		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	strcpy(passwd, p);
+
+	printf("[debug] - Data provided from parsing: uname: %s | pass: %s\n", uname, passwd);
+
+	strcat(response, "You are now registered ");
+	strcat(response, uname);
+
+	if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+	{
+		printf("[Thread %d] ",tdL.idThread);
+		perror ("[Thread] Eroare la write() catre client.\n");
+	}
+	else
+	{
+		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+	}
+
+	struct stat st = {0};
+
+	if (stat(uname, &st) == -1) 
+	{
+	    mkdir(uname, 0700);
+	}
+
+	chdir(uname);
+
+	int fd = open("login_data.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+
+	/* generating login-data file */
+
+	char* buffer = (char*)malloc(BUFF_SIZE);
+	strcpy(buffer, "username: ");
+	strcat(buffer, uname);
+	strcat(buffer, "\n");
+	strcat(buffer, "password: ");
+	strcat(buffer, passwd);
+	strcat(buffer, "\0");
+
+	/* --------------------------- */
+
+	write(fd, buffer, strlen(buffer));
+
+	close(fd);
+
+	return 0;
 
 }
