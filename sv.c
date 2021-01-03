@@ -12,40 +12,43 @@
 #include <fcntl.h>
 #include <dirent.h>
 
-/* portul folosit */
+#define PORT 3000      /* used port */
+#define BUFF_SIZE 2048 /* generif buffer size used over all the application */
 
-#define PORT 3000
-#define BUFF_SIZE 1024
-
-/* codul de eroare returnat de anumite apeluri */
+/* Declarations */
 
 extern int errno;
 
 typedef struct thData{
-	int idThread; //id-ul thread-ului tinut in evidenta de acest program
-	int cl; //descriptorul intors de accept
-	int is_logged_in; // ia valoarea idThread-ului in caz ca login() este efectuat cu succes
+	int idThread;     
+	int cl;           // desc returned by accept
+	int is_logged_in; // idThread+1 in case login() was succesful (a must for calling other funcs)
 }thData;
 
-int quit_var = 0;
+int quit_var = 0; // changes to 1 in case of quit() call
 
-static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
+/* --------------*/
+
+/* Func prototypes */
+
 int register_user(char*, struct thData);
+int add_account(char*, struct thData);
+int login_user(char*, struct thData);
+static void *treat(void *);
 void raspunde(void *);
 int find_user(char*);
-int login_user(char*, struct thData);
+
+/* --------------- */
 
 int main ()
 {
-  struct sockaddr_in server;	// structura folosita de server
+  struct sockaddr_in server;	/* server struct */ 
   struct sockaddr_in from;	
-  pthread_t th[100];    //Identificatorii thread-urilor care se vor crea
-  int nr;		//mesajul primit de trimis la client 
-  int sd;		//descriptorul de socket 
-  int pid;
-  int i=0;  
+  pthread_t th[100];  
+  int i=0;                      /* when a client connects to server, i increases */    
+  int sd;
 
-  /* crearea unui socket */
+  /* creating a socket */
 
   if ((sd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
   {
@@ -53,30 +56,30 @@ int main ()
       return errno;
   }
 
-  /* utilizarea optiunii SO_REUSEADDR */
+  /* when a client disconects, the addres of it can be reused */
 
   int on=1;
   setsockopt(sd,SOL_SOCKET,SO_REUSEADDR,&on,sizeof(on));
   
-  /* pregatirea structurilor de date */
+  /* initialing server struct */
 
   bzero (&server, sizeof (server));
   bzero (&from, sizeof (from));
   
-  /* umplem structura folosita de server */
-  /* stabilirea familiei de socket-uri */
+  /* filling server struct */
+  /* socket family */
 
   server.sin_family = AF_INET;	
   
-  /* acceptam orice adresa */
+  /* any addres is accepted */
   
   server.sin_addr.s_addr = htonl (INADDR_ANY);
   
-  /* utilizam un port utilizator */
+  /* converts the unsigned short integer hostshort from host byte order to network byte order. */
   
   server.sin_port = htons (PORT);
   
-  /* atasam socketul */
+  /* attaching the socketul */
 
   if (bind (sd, (struct sockaddr *) &server, sizeof (struct sockaddr)) == -1)
   {
@@ -84,7 +87,7 @@ int main ()
       return errno;
   }
 
-  /* punem serverul sa asculte daca vin clienti sa se conecteze */
+  /* listening for new clients */
 
   if (listen (sd, 2) == -1)
   {
@@ -92,19 +95,18 @@ int main ()
       return errno;
   }
 
-  /* servim in mod concurent clientii...folosind thread-uri */
+  /* every client has a thread asigned */
 
   while (1)
   {
     int client;
-    thData * td; //parametru functia executata de thread     
+    thData * td;
     int length = sizeof (from);
 
     printf ("[server] Asteptam la portul %d...\n",PORT);
     fflush (stdout);
 
-    // client= malloc(sizeof(int));
-    /* acceptam un client (stare blocanta pina la realizarea conexiunii) */
+    /* new client is accepted */
 
     if ( (client = accept (sd, (struct sockaddr *) &from, &length)) < 0)
   	{
@@ -112,18 +114,15 @@ int main ()
   	  continue;
   	}
   	
-    /* s-a realizat conexiunea, se astepta mesajul */
-      
-  	// int idThread; //id-ul threadului
-  	// int cl; //descriptorul intors de accept
-
+    /* waiting for client input */
+    
   	td=(struct thData*)malloc(sizeof(struct thData));	
   	td->idThread=i++;
   	td->cl=client;
 
   	pthread_create(&th[i], NULL, &treat, td);	      
 				
-	}//while    
+	}
 };		
 
 static void *treat(void * arg)
@@ -136,7 +135,6 @@ static void *treat(void * arg)
         fflush (stdout);     
         pthread_detach(pthread_self());   
         raspunde((struct thData*)arg);
-        /* am terminat cu acest client, inchidem conexiunea */
 
         if (quit_var == 1)
         {
@@ -148,7 +146,6 @@ static void *treat(void * arg)
         }
   	}
 };
-
 
 void raspunde(void *arg)
 {
@@ -198,6 +195,19 @@ void raspunde(void *arg)
 	  		printf("[debug] login_user() failed! Wrong syntax!\n");
 	  	}
     }
+    else if (strncmp(msg, "add_account", 11) == 0 && tdL.is_logged_in != -1)
+    {
+    	printf ("[Thread %d] add_account() called\n",tdL.idThread);
+    	char* acc_data = (char*)malloc(BUFF_SIZE);
+
+	  	acc_data = strtok(msg, ":");
+	  	acc_data = strtok(NULL, ":");
+
+	  	if (add_account(acc_data, tdL) == -1)
+	  	{
+	  		printf("[debug] add_account) failed! Wrong syntax!\n");
+	  	}
+    }
     else
     {
 	   	printf ("[Thread %d] Mesajul a fost receptionat...%s\n",tdL.idThread, msg);
@@ -219,7 +229,7 @@ void raspunde(void *arg)
     }
 }
 
-int find_user(char* username)
+int find_dir(char* string)
 {
     DIR *d;
     struct dirent *dir;
@@ -228,7 +238,7 @@ int find_user(char* username)
     {
         while ((dir = readdir(d)) != NULL)
         {
-            if (strcmp(username, dir->d_name) == 0)
+            if (strcmp(string, dir->d_name) == 0)
             	return 1;
         }
         closedir(d);
@@ -238,14 +248,19 @@ int find_user(char* username)
 
 int register_user(char* string, struct thData tdL)
 {
-	/* string-ul de input va fi de forma username;password */
+	/* input string: username;password */
 
 	char* response = (char*)malloc(BUFF_SIZE);
 	char* uname = (char*)malloc(BUFF_SIZE);
 	char* passwd = (char*)malloc(BUFF_SIZE);
 	char* p = (char*)malloc(BUFF_SIZE);
 
-	/* parsam input-ul */
+	/* parsing the input */
+
+	if (tdL.idThread > 0)
+	{
+		chdir("..");
+	}
 
 	p = strtok(string, ";");
 
@@ -267,7 +282,7 @@ int register_user(char* string, struct thData tdL)
 
 	strcpy(uname, p);
 
-	if (find_user(uname) == 1)
+	if (find_dir(uname) == 1)
 	{
 		strcpy(response, "User already registered! Login or try another username!");
 		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
@@ -341,7 +356,11 @@ int register_user(char* string, struct thData tdL)
 
 	/* --------------------------- */
 
-	write(fd, buffer, strlen(buffer));
+	if (write(fd, buffer, strlen(buffer)) <= 0)
+	{
+		printf("[Thread %d] ",tdL.idThread);
+		perror ("[Thread] Eroare la write() in fisierul login_data.txt.\n");
+	}
 
 	chdir("..");
 	close(fd);
@@ -352,14 +371,14 @@ int register_user(char* string, struct thData tdL)
 
 int login_user(char* string, struct thData tdL)
 {
-	/* string-ul de input va fi de forma username;password */
+	/* input string: username;password */
 
 	char* response = (char*)malloc(BUFF_SIZE);
 	char* uname = (char*)malloc(BUFF_SIZE);
 	char* passwd = (char*)malloc(BUFF_SIZE);
 	char* p = (char*)malloc(BUFF_SIZE);
 
-	/* parsam input-ul */
+	/* parsing the input */
 
 	p = strtok(string, ";");
 
@@ -401,7 +420,7 @@ int login_user(char* string, struct thData tdL)
 
 	strcpy(passwd, p);
 
-	/* Dupa parsare, efectuam operatia de log in efectiva */
+	/* Here is the login part after all the data was correctly parsed */
 
 	if (chdir(uname) == -1)
 	{
@@ -429,7 +448,7 @@ int login_user(char* string, struct thData tdL)
   	    perror ("Eroare la read() din fisierul de login_data.\n");
 	}
 
-	/* Aflarea parolei din login_data.txt */
+	/* Extracting the passwd from login_data.txt - used for checking if the input data is correct */
 
 	p = strtok(login_data_buff, ":");
 	p = strtok(NULL, ":");
@@ -469,9 +488,120 @@ int login_user(char* string, struct thData tdL)
 		}
 	}
 
+	close(fd);
+
+	return 0;
+}
+
+int add_account(char* string, struct thData tdL)
+{
+	/* category, acount title, username, password, url, notes */
+
+	char* p = (char*)malloc(BUFF_SIZE);
+	char* buffer = (char*)malloc(BUFF_SIZE); /* this will be user for formating the account_data file */
+	char* response = (char*)malloc(BUFF_SIZE);
+
+	/* categ will be used to know where the new acc will be saved (directory name) */
+
+	p = strtok(string, ",");
+
+	if (p == NULL || strlen(p) < 2)
+	{
+		strcpy(response, "Category name is invalid! Please try again!");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	/* first we check if the category already exists */
+	/* if it doesn't exists, we are going to create it */
+
+	struct stat st = {0};
+
+	if (stat(p, &st) == -1) 
+	{
+	    mkdir(p, 0700);
+	}
+
+	chdir(p);
+
+	/* ---------------------------------------------------------- */
+
+	/* title will be used to name the file which will contain the acc data */
+
+	p = strtok(NULL, ",");
+
+	if (p == NULL || strlen(p) < 2)
+	{
+		strcpy(response, "Title of the file is invalid! Please try again!");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	/* we create the file that will hold the acc_data */
+
+	char* filename = (char*)malloc(BUFF_SIZE);
+	strcpy(filename, p);
+	strcat(filename, ".txt");
+
+	int fd = open(filename, O_WRONLY | O_APPEND | O_CREAT, 0644);
+
+	/* ------------------------------------------------------------------- */
+
+	p = strtok(NULL, ",");
+	strcpy(buffer, "Username: ");
+	strcat(buffer, p);
+	strcat(buffer, "\n");
+	p = strtok(NULL, ",");
+	strcat(buffer, "Password: ");
+	strcat(buffer, p);
+	strcat(buffer, "\n");
+	p = strtok(NULL, ",");
+	strcat(buffer, "URL: ");
+	strcat(buffer, p);
+	strcat(buffer, "\n");
+	p = strtok(NULL, ",");
+	strcat(buffer, "Notes: ");
+	strcat(buffer, p);
+	strcat(buffer, "\n");
+
+	if (write(fd, buffer, strlen(buffer)) <= 0)
+	{
+		printf("[Thread %d] ",tdL.idThread);
+		perror ("[Thread] Eroare la write() in fisierul cu account_data.\n");
+	}
+
+	strcat(response, "Everything was parsed fine ");
+
+	if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+	{
+		printf("[Thread %d] ",tdL.idThread);
+		perror ("[Thread] Eroare la write() catre client.\n");
+	}
+	else
+	{
+		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+	}
+
 	chdir("..");
 	close(fd);
 
 	return 0;
-
 }
