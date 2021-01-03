@@ -18,6 +18,8 @@ extern int errno;
 /* portul de conectare la server*/
 int port;
 
+void help_menu();
+
 int main (int argc, char *argv[])
 {
   char* buf = (char*)malloc(BUFF_SIZE);
@@ -67,6 +69,10 @@ int main (int argc, char *argv[])
       return errno;
   }
 
+  /* showing the avalible commands */
+
+  help_menu();
+
   while (1)
   {
     /* citirea mesajului */
@@ -77,7 +83,11 @@ int main (int argc, char *argv[])
     
     /* tratez intai cazul de quit */
 
-    if (strncmp(buf, "quit", 4) == 0)
+    if (strncmp(buf, "help", 4) == 0)
+    {
+    	help_menu();
+    }
+    else if (strncmp(buf, "quit", 4) == 0)
     {
         printf ("[client] Am primit comanda quit, iesim!\n");
         write (sd, buf, BUFF_SIZE);
@@ -115,4 +125,17 @@ int main (int argc, char *argv[])
 
   /* inchidem conexiunea, am terminat */
   close (sd);
+}
+
+void help_menu()
+{
+	printf("\n--- Welcome to the password_manager app! To start, enter one of the commands below. ---\n");
+	printf("--- Remember: To start using the app, you must register or log in first! ---\n");
+	printf("--- Avalible commands: ---\n");
+	printf("--- <register> <log in> <reset_password> <add_account> <show_accounts> <edit_account>---\n");
+	printf("--- Syntax of the commands: ---\n");
+	printf("--- For <register> and <log in>: command:username;password ---\n");
+	printf("--- For <reset_password>: command:username ---\n");
+	printf("--- For <add_account> and <show_accounts>: command ---\n");
+	printf("--- For <edit_account>: command:name_of_account ---\n\n");
 }

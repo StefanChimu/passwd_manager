@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 /* portul folosit */
 
@@ -26,10 +27,13 @@ typedef struct thData{
 }thData;
 
 int quit_var = 0;
+int is_logged_in = -1; // this will be syncronized with the thread_id
 
 static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
 int register_user(char*, struct thData);
 void raspunde(void *);
+int find_user(char*);
+int login_user(char*, struct thData);
 
 int main ()
 {
@@ -139,6 +143,7 @@ static void *treat(void * arg)
         {
         	printf("[debug] Am dat de quit si am schimbat quit_var!\n");
             quit_var = 0;
+            is_logged_in = -1;
             close ((intptr_t)arg);
             return(NULL); 
         }
@@ -180,6 +185,24 @@ void raspunde(void *arg)
 	  		printf("[debug] register_user failed! Wrong syntax!\n");
 	  	}
     }
+    else if (strncmp(msg, "login", 5) == 0)
+    {
+	  	printf ("[Thread %d] login() called\n",tdL.idThread);
+	  		      
+	  	char* login_data = (char*)malloc(BUFF_SIZE);
+
+	  	login_data = strtok(msg, ":");
+	  	login_data = strtok(NULL, ":");
+
+	  	if (login_user(login_data, tdL) == -1)
+	  	{
+	  		printf("[debug] login_user failed! Wrong syntax!\n");
+	  	}
+	  	else
+	  	{
+	  		is_logged_in = tdL.idThread;
+	  	}
+    }
     else
     {
 	   	printf ("[Thread %d] Mesajul a fost receptionat...%s\n",tdL.idThread, msg);
@@ -201,6 +224,23 @@ void raspunde(void *arg)
     }
 }
 
+int find_user(char* username)
+{
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+            if (strcmp(username, dir->d_name) == 0)
+            	return 1;
+        }
+        closedir(d);
+    }
+    return 0;
+}
+
 int register_user(char* string, struct thData tdL)
 {
 	/* string-ul de input va fi de forma username;password */
@@ -214,7 +254,7 @@ int register_user(char* string, struct thData tdL)
 
 	p = strtok(string, ";");
 
-	if (p == NULL)
+	if (p == NULL && strlen(p) < 3)
 	{
 		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
 		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
@@ -232,9 +272,25 @@ int register_user(char* string, struct thData tdL)
 
 	strcpy(uname, p);
 
+	if (find_user(uname) == 1)
+	{
+		strcpy(response, "User already registered! Login or try another username!");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
 	p = strtok(NULL, ";");
 
-	if (p == NULL)
+	if (p == NULL && strlen(p) < 3)
 	{
 		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
 		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
@@ -252,8 +308,6 @@ int register_user(char* string, struct thData tdL)
 
 	strcpy(passwd, p);
 
-	printf("[debug] - Data provided from parsing: uname: %s | pass: %s\n", uname, passwd);
-
 	strcat(response, "You are now registered ");
 	strcat(response, uname);
 
@@ -266,6 +320,8 @@ int register_user(char* string, struct thData tdL)
 	{
 		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
 	}
+
+	/* Creating the env for the user - a directory for each one which will contain all the data */
 
 	struct stat st = {0};
 
@@ -281,10 +337,10 @@ int register_user(char* string, struct thData tdL)
 	/* generating login-data file */
 
 	char* buffer = (char*)malloc(BUFF_SIZE);
-	strcpy(buffer, "username: ");
+	strcpy(buffer, "username:");
 	strcat(buffer, uname);
 	strcat(buffer, "\n");
-	strcat(buffer, "password: ");
+	strcat(buffer, "password:");
 	strcat(buffer, passwd);
 	strcat(buffer, "\0");
 
@@ -292,8 +348,130 @@ int register_user(char* string, struct thData tdL)
 
 	write(fd, buffer, strlen(buffer));
 
+	chdir("..");
 	close(fd);
 
 	return 0;
+
+}
+
+int login_user(char* string, struct thData tdL)
+{
+	/* string-ul de input va fi de forma username;password */
+
+	char* response = (char*)malloc(BUFF_SIZE);
+	char* uname = (char*)malloc(BUFF_SIZE);
+	char* passwd = (char*)malloc(BUFF_SIZE);
+	char* p = (char*)malloc(BUFF_SIZE);
+
+	/* parsam input-ul */
+
+	p = strtok(string, ";");
+
+	if (p == NULL && strlen(p) < 3)
+	{
+		strcpy(response, "Wrong data provided! Try again: login:uname;passwd");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	strcpy(uname, p);
+
+	p = strtok(NULL, ";");
+
+	if (p == NULL && strlen(p) < 3)
+	{
+		strcpy(response, "Wrong data provided! Try again: login:uname;passwd");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	strcpy(passwd, p);
+
+	/* Dupa parsare, efectuam operatia de log in efectiva */
+
+	if (chdir(uname) == -1)
+	{
+		strcpy(response, "Wrong username provided! Try again with a valid username or register first!");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+
+	int fd = open("login_data.txt", O_RDONLY);
+
+	char* login_data_buff = (char*)malloc(BUFF_SIZE);
+
+	if (read(fd, login_data_buff, BUFF_SIZE) <= 0)
+	{
+		printf("[Thread %d]\n",tdL.idThread);
+  	    perror ("Eroare la read() din fisierul de login_data.\n");
+	}
+
+	p = strtok(login_data_buff, ":");
+	printf("[debug] first strtok: %s\n", p);
+	p = strtok(NULL, ":");
+	printf("[debug] second strtok: %s\n", p);
+	p = strtok(NULL, ":");
+	printf("[debug] third strtok: %s\n", p);
+
+	printf("[debug] password from file obtained with strtok is: %s and password provided as parameter is: %s\n", p, passwd);
+
+	if (strncmp(p, passwd, strlen(passwd)) != 0)
+	{
+		strcpy(response, "Wrong password provided! Try again with a valid password!");
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+
+		return -1;
+	}
+	else
+	{
+		strcat(response, "You are now logged in! ");
+		strcat(response, uname);
+
+		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+		{
+			printf("[Thread %d] ",tdL.idThread);
+			perror ("[Thread] Eroare la write() catre client.\n");
+		}
+		else
+		{
+			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		}
+	}
 
 }
