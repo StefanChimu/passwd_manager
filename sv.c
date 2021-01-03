@@ -24,10 +24,10 @@ extern int errno;
 typedef struct thData{
 	int idThread; //id-ul thread-ului tinut in evidenta de acest program
 	int cl; //descriptorul intors de accept
+	int is_logged_in; // ia valoarea idThread-ului in caz ca login() este efectuat cu succes
 }thData;
 
 int quit_var = 0;
-int is_logged_in = -1; // this will be syncronized with the thread_id
 
 static void *treat(void *); /* functia executata de fiecare thread ce realizeaza comunicarea cu clientii */
 int register_user(char*, struct thData);
@@ -136,14 +136,13 @@ static void *treat(void * arg)
         fflush (stdout);     
         pthread_detach(pthread_self());   
         raspunde((struct thData*)arg);
-
         /* am terminat cu acest client, inchidem conexiunea */
 
         if (quit_var == 1)
         {
         	printf("[debug] Am dat de quit si am schimbat quit_var!\n");
             quit_var = 0;
-            is_logged_in = -1;
+            tdL.is_logged_in = -1;
             close ((intptr_t)arg);
             return(NULL); 
         }
@@ -182,7 +181,7 @@ void raspunde(void *arg)
 
 	  	if (register_user(register_data, tdL) == -1)
 	  	{
-	  		printf("[debug] register_user failed! Wrong syntax!\n");
+	  		printf("[debug] register_user() failed! Wrong syntax!\n");
 	  	}
     }
     else if (strncmp(msg, "login", 5) == 0)
@@ -196,11 +195,7 @@ void raspunde(void *arg)
 
 	  	if (login_user(login_data, tdL) == -1)
 	  	{
-	  		printf("[debug] login_user failed! Wrong syntax!\n");
-	  	}
-	  	else
-	  	{
-	  		is_logged_in = tdL.idThread;
+	  		printf("[debug] login_user() failed! Wrong syntax!\n");
 	  	}
     }
     else
@@ -434,14 +429,13 @@ int login_user(char* string, struct thData tdL)
   	    perror ("Eroare la read() din fisierul de login_data.\n");
 	}
 
-	p = strtok(login_data_buff, ":");
-	printf("[debug] first strtok: %s\n", p);
-	p = strtok(NULL, ":");
-	printf("[debug] second strtok: %s\n", p);
-	p = strtok(NULL, ":");
-	printf("[debug] third strtok: %s\n", p);
+	/* Aflarea parolei din login_data.txt */
 
-	printf("[debug] password from file obtained with strtok is: %s and password provided as parameter is: %s\n", p, passwd);
+	p = strtok(login_data_buff, ":");
+	p = strtok(NULL, ":");
+	p = strtok(NULL, ":");
+
+	/* ----------------------------------- */
 
 	if (strncmp(p, passwd, strlen(passwd)) != 0)
 	{
@@ -460,6 +454,7 @@ int login_user(char* string, struct thData tdL)
 	}
 	else
 	{
+		tdL.is_logged_in = tdL.idThread + 1;
 		strcat(response, "You are now logged in! ");
 		strcat(response, uname);
 
@@ -473,5 +468,10 @@ int login_user(char* string, struct thData tdL)
 			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
 		}
 	}
+
+	chdir("..");
+	close(fd);
+
+	return 0;
 
 }
