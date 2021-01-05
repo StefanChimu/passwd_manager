@@ -118,7 +118,7 @@ int main (int argc, char *argv[])
 
 	    /* printing the output */
 
-	    printf ("[server_output] >>\n%s\n", r);
+	    printf ("[server_output] ->\n%s\n", r);
 	  }
 
 	  	/* cleaning both input and output buffs */
@@ -132,17 +132,17 @@ int main (int argc, char *argv[])
 
 void help_menu()
 {
-	printf("\n--- Welcome to the password_manager app! To start, enter one of the commands below: ---\n");
-	printf("--- (Remember): To start using the app, you must register or log in first! ---\n");
-	printf("--- Avalible commands: ---\n");
+	printf("\n--- Welcome to the password_manager app! To START, enter one of the commands below: ---\n");
+	printf("--- (Remember!): To start using the app, you must register or log in first! ---\n");
+	printf("--- AVALIBLE COMMANDS: ---\n");
 	printf("--- <register> <log in> <reset_password> <add_account> <show_accounts> <edit_account> ---\n");
-	printf("--- Syntax of the commands: ---\n");
+	printf("--- SYNTAX OF THE COMMANDS: ---\n");
 	printf("--- For <register> and <log in>: command:username;password ---\n");
 	printf("--- For <reset_password>: command:username ---\n");
 	printf("--- For <add_account>: command:category ---\n");
+	printf("--- For <show_account> and <edit_account>: command:category;title ---\n");
+	printf("--- HOW TO USE: ---\n");
 	printf("--- <add_acount> will create a file with the following fields (in this order): ---\n");
 	printf("--- category, account title, username, password, url, notes. ---\n");
-	printf("--- The input for <add_account> will be given in this order, every field being separated by a quote ---\n");
-	printf("--- For <show_accounts>: command:category;title ---\n");
-	printf("--- For <edit_account>: command:name_of_account ---\n\n");
+	printf("--- The input for <add_account> will be given in this order, every field being separated by a quote ---\n\n");
 }

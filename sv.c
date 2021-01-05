@@ -16,7 +16,6 @@
 #define BUFF_SIZE 2048 /* generif buffer size used over all the application */
 
 /* Declarations */
-
 extern int errno;
 
 typedef struct thData{
@@ -31,13 +30,14 @@ int quit_var = 0; // changes to 1 in case of quit() call
 
 /* Func prototypes */
 
+void output_sender(char*, struct thData);
 int register_user(char*, struct thData);
-int show_account(char*, struct thData);
+int edit_account(char*, struct thData);
+int show_account(char*, struct thData, int);
 int add_account(char*, struct thData);
 int login_user(char*, struct thData);
-void output_sender(char*, struct thData);
 static void *treat(void *);
-void raspunde(void *);
+void respond(void *);
 int finder(char*);
 
 /* --------------- */
@@ -72,16 +72,10 @@ int main ()
   /* socket family */
 
   server.sin_family = AF_INET;	
+  server.sin_addr.s_addr = htonl (INADDR_ANY);   /* any addres is accepted */  
+  server.sin_port = htons (PORT);   			 /* host byte order to network byte order. */
   
-  /* any addres is accepted */
-  
-  server.sin_addr.s_addr = htonl (INADDR_ANY);
-  
-  /* converts the unsigned short integer hostshort from host byte order to network byte order. */
-  
-  server.sin_port = htons (PORT);
-  
-  /* attaching the socketul */
+  /* attaching the socket */
 
   if (bind (sd, (struct sockaddr *) &server, sizeof (struct sockaddr)) == -1)
   {
@@ -136,7 +130,7 @@ static void *treat(void * arg)
         printf ("[thread]- %d - Asteptam mesajul...\n", tdL.idThread);
         fflush (stdout);     
         pthread_detach(pthread_self());   
-        raspunde((struct thData*)arg);
+        respond((struct thData*)arg);
 
         if (quit_var == 1)
         {
@@ -149,7 +143,7 @@ static void *treat(void * arg)
   	}
 };
 
-void raspunde(void *arg)
+void respond(void *arg)
 {
     char* msg = (char*)malloc(BUFF_SIZE);
   	struct thData tdL; 
@@ -162,6 +156,8 @@ void raspunde(void *arg)
   	   perror ("Eroare la read() de la client.\n");
   			
   	}
+
+  	/* here i treat every comand. If invalid command is given, nothing will be done (client receives warning) */
 
     if (strncmp(msg, "quit", 4) == 0)
     {
@@ -199,10 +195,12 @@ void raspunde(void *arg)
 	  	if (login_data == NULL || strlen(login_data) < 2)
 	  	{
 	  		output_sender("Invalid login data provided!", tdL);
+	  		login_data = (char*)malloc(BUFF_SIZE);
 	  	}
 	  	else if (login_user(login_data, tdL) == -1)
 	  	{
 	  		printf("[debug] login_user() failed! Wrong syntax!\n");
+	  		login_data = (char*)malloc(BUFF_SIZE);
 	  	}
     }
     else if (strncmp(msg, "add_account", 11) == 0 && tdL.is_logged_in != -1)
@@ -216,10 +214,12 @@ void raspunde(void *arg)
 	  	if (acc_data == NULL || strlen(acc_data) < 2)
 	  	{
 	  		output_sender("Invalid account data provided!", tdL);
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
 	  	}
 	  	else if (add_account(acc_data, tdL) == -1)
 	  	{
 	  		printf("[debug] add_account() failed! Wrong syntax!\n");
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
 	  	}
     }
     else if (strncmp(msg, "show_account", 12) == 0 && tdL.is_logged_in != -1)
@@ -233,15 +233,37 @@ void raspunde(void *arg)
 	  	if (acc_data == NULL || strlen(acc_data) < 2)
 	  	{
 	  		output_sender("Invalid account data provided!", tdL);
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
 	  	}
-	  	else if (show_account(acc_data, tdL) == -1)
+	  	else if (show_account(acc_data, tdL, 0) == -1)
 	  	{
 	  		printf("[debug] show_account() failed! Wrong syntax!\n");
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
+	  	}
+    }
+    else if (strncmp(msg, "edit_account", 12) == 0 && tdL.is_logged_in != -1)
+    {
+    	printf ("[Thread %d] edit_account() called\n",tdL.idThread);
+    	char* acc_data = (char*)malloc(BUFF_SIZE);
+
+	  	acc_data = strtok(msg, ":");
+	  	acc_data = strtok(NULL, ":");
+
+	  	if (acc_data == NULL || strlen(acc_data) < 2)
+	  	{
+	  		output_sender("Invalid account data provided!", tdL);
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
+	  	}
+	  	else if (edit_account(acc_data, tdL) == -1)
+	  	{
+	  		printf("[debug] show_account() failed! Wrong syntax!\n");
+	  		char* acc_data = (char*)malloc(BUFF_SIZE);
 	  	}
     }
     else
     {	
     	output_sender("Invalid command! Review the help menu!", tdL);
+    	msg = (char*)malloc(BUFF_SIZE);
     }
 }
 
@@ -266,7 +288,6 @@ int finder(char* string)
 
 void output_sender(char* string, struct thData tdL)
 {
-
 	if (write (tdL.cl, string, BUFF_SIZE) <= 0)
 	{
 	  	printf("[Thread %d] ",tdL.idThread);
@@ -281,8 +302,6 @@ void output_sender(char* string, struct thData tdL)
 
 int register_user(char* string, struct thData tdL)
 {
-	/* input string: username;password */
-
 	char* response = (char*)malloc(BUFF_SIZE);
 	char* uname = (char*)malloc(BUFF_SIZE);
 	char* passwd = (char*)malloc(BUFF_SIZE);
@@ -366,8 +385,6 @@ int register_user(char* string, struct thData tdL)
 
 int login_user(char* string, struct thData tdL)
 {
-	/* input string: username;password */
-
 	char* response = (char*)malloc(BUFF_SIZE);
 	char* uname = (char*)malloc(BUFF_SIZE);
 	char* passwd = (char*)malloc(BUFF_SIZE);
@@ -441,13 +458,8 @@ int login_user(char* string, struct thData tdL)
 
 int add_account(char* string, struct thData tdL)
 {
-	/* category, acount title, username, password, url, notes */
-
 	char* p = (char*)malloc(BUFF_SIZE);
-
-	/* this will be user for formating the account_data file */
-	char* buffer = (char*)malloc(BUFF_SIZE);
-
+	char* buffer = (char*)malloc(BUFF_SIZE); 	/* used for formating the account_data file */
 	char* response = (char*)malloc(BUFF_SIZE);
 
 	/* categ will be used to know where the new acc will be saved (directory name) */
@@ -520,15 +532,13 @@ int add_account(char* string, struct thData tdL)
 	return 0;
 }
 
-int show_account(char* string, struct thData tdL)
+int show_account(char* string, struct thData tdL, int if_used)
 {
 	/* parsing the input */
 
 	char* response = (char*)malloc(BUFF_SIZE);
 	char* p = (char*)malloc(BUFF_SIZE);
-
 	p = strtok(string, ";");
-	printf("[debug] categ from parsing in show_account: %s", p);
 
 	if (chdir(p) == -1)
 	{
@@ -564,10 +574,138 @@ int show_account(char* string, struct thData tdL)
   	    perror ("Eroare la read() din fisierul de account_data.\n");
 	}
 
-	output_sender(buffer, tdL);
+	if (if_used == 1)
+	{
+		strcat(buffer, "What do you want to modify?");
+		strcat(buffer, "\n");
+		strcat(buffer, "Username, Password, URL, Notes");
+		strcat(buffer, "\n");
+		strcat(buffer, "(Remember: Case sensitive!)");
+	}
+	else
+	{
+		chdir("..");
+	}
 
-	chdir("..");
+	output_sender(buffer, tdL);
 	close(fd);
 
+	return 0;
+}
+
+int edit_account(char* string, struct thData tdL)
+{
+	char* modification = (char*)malloc(BUFF_SIZE);
+	char* clone = (char*)malloc(BUFF_SIZE);
+	strcpy(clone, string);
+
+	/* obtaining file name */
+
+	char* pp = (char*)malloc(BUFF_SIZE);
+	pp = strtok(clone, ";");
+	pp = strtok(NULL, ";");
+	char* title = (char*)malloc(strlen(pp)-1);
+	strncpy(title, pp, strlen(pp)-1); 
+
+	/* ------------------ */
+
+	/* showing the file in the terminal for client */
+
+	if (show_account(string, tdL, 1) == -1)
+	{
+	  	printf("[debug] show_account() failed! Wrong syntax!\n");
+	}
+
+	/* ------------------------------------------ */
+
+	char* p = (char*)malloc(BUFF_SIZE);
+
+	/* asking user for what modification (s)he wants to do - field:modified content*/
+
+  	if (read (tdL.cl, modification, BUFF_SIZE) <= 0)
+  	{
+
+  	   printf("[Thread %d]\n",tdL.idThread);
+  	   perror ("Eroare la read() de la client.\n");
+  			
+  	}
+
+  	p = strtok(modification, ":");
+
+	if (p == NULL || strlen(p) < 2)
+	{
+		output_sender("Field is invalid! Please try again!", tdL);
+		return -1;
+	}
+
+	char* field = (char*)malloc(strlen(p));
+	strcpy(field, p);
+
+	p = strtok(NULL, ":");
+
+	if (p == NULL || strlen(p) < 2)
+	{
+		output_sender("Modification is invalid! Please try again!", tdL);
+		return -1;
+	}
+
+	char* content = (char*)malloc(strlen(p));
+	strcpy(content, p);
+
+	/* ------------------------------------- */
+
+	int ff1 = open(title, O_RDONLY);
+
+	//int ff = open(title, O_WRONLY | O_CREAT , 0666);
+
+	char* file_content = (char*)malloc(BUFF_SIZE);
+	char* modified_file_content = (char*)malloc(BUFF_SIZE);
+	strcpy(modified_file_content, "This file was modified!\n");
+
+	if (read (ff1, file_content, BUFF_SIZE) <= 0)
+  	{
+
+  	   printf("[Thread %d]\n",tdL.idThread);
+  	   perror ("Eroare la read() din acc_data file.\n");
+  			
+  	}
+
+  	char *p_modifier = (char*)malloc(BUFF_SIZE);
+
+  	p_modifier = strtok(file_content, "\n");
+
+  	while (p_modifier != NULL)
+  	{
+  		if (strncmp(p_modifier, field, strlen(field)) == 0)
+  		{
+  			char* new_line = (char*)malloc(BUFF_SIZE);
+  			strcpy(new_line, field);
+  			strcat(new_line, ": ");
+  			strcat(new_line, content);
+  			//strcat(new_line, "\n");
+  			strcat(modified_file_content, new_line);
+  			//strcat(modified_file_content, "\n");
+  		}
+  		else
+  		{
+	  		strcat(modified_file_content, p_modifier);
+	  		strcat(modified_file_content, "\n");
+	  	}
+	  	p_modifier = strtok(NULL, "\n");
+  	}
+
+  	close(ff1);
+  	int ff2 = open(title, O_CREAT | O_TRUNC | O_WRONLY, 0644);
+
+
+  	if (write(ff2, modified_file_content, strlen(modified_file_content)) <= 0)
+	{
+		printf("[Thread %d] ",tdL.idThread);
+		perror ("[Thread] Eroare la write() in fisierul login_data.txt.\n");
+	}
+
+	output_sender("SUCCES on getting the data!", tdL);
+
+	close(ff2);
 	return 0;
 }
