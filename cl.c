@@ -85,7 +85,7 @@ int main (int argc, char *argv[])
   {
     /* taking the input from the client */
 
-    printf ("[client] Introduceti mesajul: ");
+    printf ("[client] >> ");
     fflush (stdout);
     read (0, buf, BUFF_SIZE);
 
@@ -95,14 +95,11 @@ int main (int argc, char *argv[])
     }
     else if (strncmp(buf, "quit", 4) == 0)
     {
-        printf ("[client] Am primit comanda quit, iesim!\n");
         write (sd, buf, BUFF_SIZE);
         break;
     }
     else
     {
-	    printf("[client] Am citit %s\n", buf);
-
 	    /* sending input to the server */
 
 	    if (write (sd, buf, BUFF_SIZE) <= 0)
@@ -121,7 +118,7 @@ int main (int argc, char *argv[])
 
 	    /* printing the output */
 
-	    printf ("[client] Mesajul primit de la server este: %s\n", r);
+	    printf ("[server_output] >>\n%s\n", r);
 	  }
 
 	  	/* cleaning both input and output buffs */

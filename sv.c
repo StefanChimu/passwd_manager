@@ -32,11 +32,13 @@ int quit_var = 0; // changes to 1 in case of quit() call
 /* Func prototypes */
 
 int register_user(char*, struct thData);
+int show_account(char*, struct thData);
 int add_account(char*, struct thData);
 int login_user(char*, struct thData);
+void output_sender(char*, struct thData);
 static void *treat(void *);
 void raspunde(void *);
-int find_user(char*);
+int finder(char*);
 
 /* --------------- */
 
@@ -176,7 +178,11 @@ void raspunde(void *arg)
 	  	register_data = strtok(msg, ":");
 	  	register_data = strtok(NULL, ":");
 
-	  	if (register_user(register_data, tdL) == -1)
+	  	if (register_data == NULL || strlen(register_data) < 2)
+	  	{
+	  		output_sender("Invalid register data provided!", tdL);
+	  	}
+	  	else if (register_user(register_data, tdL) == -1)
 	  	{
 	  		printf("[debug] register_user() failed! Wrong syntax!\n");
 	  	}
@@ -190,7 +196,11 @@ void raspunde(void *arg)
 	  	login_data = strtok(msg, ":");
 	  	login_data = strtok(NULL, ":");
 
-	  	if (login_user(login_data, tdL) == -1)
+	  	if (login_data == NULL || strlen(login_data) < 2)
+	  	{
+	  		output_sender("Invalid login data provided!", tdL);
+	  	}
+	  	else if (login_user(login_data, tdL) == -1)
 	  	{
 	  		printf("[debug] login_user() failed! Wrong syntax!\n");
 	  	}
@@ -203,33 +213,39 @@ void raspunde(void *arg)
 	  	acc_data = strtok(msg, ":");
 	  	acc_data = strtok(NULL, ":");
 
-	  	if (add_account(acc_data, tdL) == -1)
+	  	if (acc_data == NULL || strlen(acc_data) < 2)
 	  	{
-	  		printf("[debug] add_account) failed! Wrong syntax!\n");
+	  		output_sender("Invalid account data provided!", tdL);
+	  	}
+	  	else if (add_account(acc_data, tdL) == -1)
+	  	{
+	  		printf("[debug] add_account() failed! Wrong syntax!\n");
+	  	}
+    }
+    else if (strncmp(msg, "show_account", 12) == 0 && tdL.is_logged_in != -1)
+    {
+    	printf ("[Thread %d] show_account() called\n",tdL.idThread);
+    	char* acc_data = (char*)malloc(BUFF_SIZE);
+
+	  	acc_data = strtok(msg, ":");
+	  	acc_data = strtok(NULL, ":");
+
+	  	if (acc_data == NULL || strlen(acc_data) < 2)
+	  	{
+	  		output_sender("Invalid account data provided!", tdL);
+	  	}
+	  	else if (show_account(acc_data, tdL) == -1)
+	  	{
+	  		printf("[debug] show_account() failed! Wrong syntax!\n");
 	  	}
     }
     else
-    {
-	   	printf ("[Thread %d] Mesajul a fost receptionat...%s\n",tdL.idThread, msg);
-	  		      
-	  	/*pregatim mesajul de raspuns */
-	  	printf("[Thread %d] Trimitem mesajul inapoi...%s\n",tdL.idThread, msg);
-	  		      
-	  		      
-	  	/* returnam mesajul clientului */
-	  	if (write (tdL.cl, msg, BUFF_SIZE) <= 0)
-	  	{
-	  		 printf("[Thread %d] ",tdL.idThread);
-	  		 perror ("[Thread] Eroare la write() catre client.\n");
-	  	}
-	  	else
-	    {
-	  		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-	    }
+    {	
+    	output_sender("Invalid command! Review the help menu!", tdL);
     }
 }
 
-int find_dir(char* string)
+int finder(char* string)
 {
     DIR *d;
     struct dirent *dir;
@@ -238,13 +254,30 @@ int find_dir(char* string)
     {
         while ((dir = readdir(d)) != NULL)
         {
-            if (strcmp(string, dir->d_name) == 0)
+            if (strncmp(string, dir->d_name, strlen(dir->d_name)) == 0)
+            {
             	return 1;
+            }
         }
         closedir(d);
     }
     return 0;
 }
+
+void output_sender(char* string, struct thData tdL)
+{
+
+	if (write (tdL.cl, string, BUFF_SIZE) <= 0)
+	{
+	  	printf("[Thread %d] ",tdL.idThread);
+	  	perror ("[Thread] Eroare la write() catre client.\n");
+	}
+	else
+	{
+	  	printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+	}
+}
+
 
 int register_user(char* string, struct thData tdL)
 {
@@ -264,55 +297,25 @@ int register_user(char* string, struct thData tdL)
 
 	p = strtok(string, ";");
 
-	if (p == NULL && strlen(p) < 3)
+	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong data provided! Try again: register:uname;passwd", tdL);
 		return -1;
 	}
 
 	strcpy(uname, p);
 
-	if (find_dir(uname) == 1)
+	if (finder(uname) == 1)
 	{
-		strcpy(response, "User already registered! Login or try another username!");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("User already registered! Login or try another username!", tdL);
 		return -1;
 	}
 
 	p = strtok(NULL, ";");
 
-	if (p == NULL && strlen(p) < 3)
+	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Wrong data provided! Try again: register:uname;passwd");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong data provided! Try again: register:uname;passwd", tdL);
 		return -1;
 	}
 
@@ -321,15 +324,7 @@ int register_user(char* string, struct thData tdL)
 	strcat(response, "You are now registered ");
 	strcat(response, uname);
 
-	if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-	{
-		printf("[Thread %d] ",tdL.idThread);
-		perror ("[Thread] Eroare la write() catre client.\n");
-	}
-	else
-	{
-		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-	}
+	output_sender(response, tdL);
 
 	/* Creating the env for the user - a directory for each one which will contain all the data */
 
@@ -382,19 +377,9 @@ int login_user(char* string, struct thData tdL)
 
 	p = strtok(string, ";");
 
-	if (p == NULL && strlen(p) < 3)
+	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Wrong data provided! Try again: login:uname;passwd");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong data provided! Try again: login:uname;passwd", tdL);
 		return -1;
 	}
 
@@ -402,19 +387,9 @@ int login_user(char* string, struct thData tdL)
 
 	p = strtok(NULL, ";");
 
-	if (p == NULL && strlen(p) < 3)
+	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Wrong data provided! Try again: login:uname;passwd");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong data provided! Try again: login:uname;passwd", tdL);
 		return -1;
 	}
 
@@ -424,17 +399,7 @@ int login_user(char* string, struct thData tdL)
 
 	if (chdir(uname) == -1)
 	{
-		strcpy(response, "Wrong username provided! Try again with a valid username or register first!");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong username provided! Try again with a valid username or register first!", tdL);
 		return -1;
 	}
 
@@ -458,17 +423,7 @@ int login_user(char* string, struct thData tdL)
 
 	if (strncmp(p, passwd, strlen(passwd)) != 0)
 	{
-		strcpy(response, "Wrong password provided! Try again with a valid password!");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Wrong password provided! Try again with a valid password!", tdL);
 		return -1;
 	}
 	else
@@ -476,16 +431,7 @@ int login_user(char* string, struct thData tdL)
 		tdL.is_logged_in = tdL.idThread + 1;
 		strcat(response, "You are now logged in! ");
 		strcat(response, uname);
-
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
+		output_sender(response, tdL);
 	}
 
 	close(fd);
@@ -498,7 +444,10 @@ int add_account(char* string, struct thData tdL)
 	/* category, acount title, username, password, url, notes */
 
 	char* p = (char*)malloc(BUFF_SIZE);
-	char* buffer = (char*)malloc(BUFF_SIZE); /* this will be user for formating the account_data file */
+
+	/* this will be user for formating the account_data file */
+	char* buffer = (char*)malloc(BUFF_SIZE);
+
 	char* response = (char*)malloc(BUFF_SIZE);
 
 	/* categ will be used to know where the new acc will be saved (directory name) */
@@ -507,17 +456,7 @@ int add_account(char* string, struct thData tdL)
 
 	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Category name is invalid! Please try again!");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Category name is invalid! Please try again!", tdL);
 		return -1;
 	}
 
@@ -541,27 +480,13 @@ int add_account(char* string, struct thData tdL)
 
 	if (p == NULL || strlen(p) < 2)
 	{
-		strcpy(response, "Title of the file is invalid! Please try again!");
-		if (write (tdL.cl, response, BUFF_SIZE) <= 0)
-		{
-			printf("[Thread %d] ",tdL.idThread);
-			perror ("[Thread] Eroare la write() catre client.\n");
-		}
-		else
-		{
-			printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
-		}
-
+		output_sender("Title of the file is invalid! Please try again!", tdL);
 		return -1;
 	}
 
 	/* we create the file that will hold the acc_data */
 
-	char* filename = (char*)malloc(BUFF_SIZE);
-	strcpy(filename, p);
-	strcat(filename, ".txt");
-
-	int fd = open(filename, O_WRONLY | O_APPEND | O_CREAT, 0644);
+	int fd = open(p, O_WRONLY | O_APPEND | O_CREAT, 0644);
 
 	/* ------------------------------------------------------------------- */
 
@@ -588,17 +513,58 @@ int add_account(char* string, struct thData tdL)
 		perror ("[Thread] Eroare la write() in fisierul cu account_data.\n");
 	}
 
-	strcat(response, "Everything was parsed fine ");
+	output_sender("Everything was parsed fine!", tdL);
+	chdir("..");
+	close(fd);
 
-	if (write (tdL.cl, response, BUFF_SIZE) <= 0)
+	return 0;
+}
+
+int show_account(char* string, struct thData tdL)
+{
+	/* parsing the input */
+
+	char* response = (char*)malloc(BUFF_SIZE);
+	char* p = (char*)malloc(BUFF_SIZE);
+
+	p = strtok(string, ";");
+	printf("[debug] categ from parsing in show_account: %s", p);
+
+	if (chdir(p) == -1)
 	{
-		printf("[Thread %d] ",tdL.idThread);
-		perror ("[Thread] Eroare la write() catre client.\n");
+		output_sender("This category doesn't exists! Please try again!", tdL);
+		return -1;
 	}
-	else
+
+	p = strtok(NULL, ";");
+
+	char* title = (char*)malloc(strlen(p)-1);
+
+	strncpy(title, p, strlen(p)-1); /* somehow if i didn't explicitly copied this, it did't work */
+
+	if (finder(title) == 0)
 	{
-		printf ("[Thread %d] Mesajul a fost trasmis cu succes.\n",tdL.idThread);	
+		output_sender("This title file doesn't exists! Please try again!", tdL);
+		return -1;
 	}
+
+	int fd = open(title, O_RDONLY);
+
+	if (fd < 1)
+	{
+		printf("[Thread %d]\n",tdL.idThread);
+  	    perror ("Eroare la open() a fisierului account_data, bad file descriptor!.\n");
+	}
+
+	char* buffer = (char*)malloc(BUFF_SIZE);
+
+	if (read(fd, buffer, BUFF_SIZE) <= 0)
+	{
+		printf("[Thread %d]\n",tdL.idThread);
+  	    perror ("Eroare la read() din fisierul de account_data.\n");
+	}
+
+	output_sender(buffer, tdL);
 
 	chdir("..");
 	close(fd);
