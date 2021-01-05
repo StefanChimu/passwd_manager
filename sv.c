@@ -305,6 +305,22 @@ int finder(char* string)
     return 0;
 }
 
+void encrypt(char* string)
+{
+	for (int i=0; i<strlen(string); i++)
+	{
+		string[i] = string[i] + 100;
+	}
+}
+
+void decrypt(char* string)
+{
+	for (int i=0; i<strlen(string); i++)
+	{
+		string[i] = string[i] - 100;
+	}
+}
+
 void output_sender(char* string, struct thData tdL)
 {
 	if (write (tdL.cl, string, BUFF_SIZE) <= 0)
@@ -386,6 +402,7 @@ int register_user(char* string, struct thData tdL)
 	strcat(buffer, "password:");
 	strcat(buffer, passwd);
 	strcat(buffer, "\0");
+	encrypt(buffer);
 
 	/* --------------------------- */
 
@@ -451,6 +468,7 @@ int login_user(char* string, struct thData tdL)
 
 	/* Extracting the passwd from login_data.txt - used for checking if the input data is correct */
 
+	decrypt(login_data_buff);
 	p = strtok(login_data_buff, ":");
 	p = strtok(NULL, ":");
 	p = strtok(NULL, ":");
@@ -537,6 +555,7 @@ int add_account(char* string, struct thData tdL)
 	strcat(buffer, "Notes: ");
 	strcat(buffer, p);
 	strcat(buffer, "\n");
+	encrypt(buffer);
 
 	if (write(fd, buffer, strlen(buffer)) <= 0)
 	{
@@ -592,6 +611,8 @@ int show_account(char* string, struct thData tdL, int if_used)
 		printf("[Thread %d]\n",tdL.idThread);
   	    perror ("Eroare la read() din fisierul de account_data.\n");
 	}
+
+	decrypt(buffer);
 
 	if (if_used == 1)
 	{
@@ -687,6 +708,8 @@ int edit_account(char* string, struct thData tdL)
   			
   	}
 
+  	decrypt(file_content);
+
   	char *p_modifier = (char*)malloc(BUFF_SIZE);
 
   	p_modifier = strtok(file_content, "\n");
@@ -712,6 +735,7 @@ int edit_account(char* string, struct thData tdL)
   	close(ff1);
   	int ff2 = open(title, O_CREAT | O_TRUNC | O_WRONLY, 0644);
 
+  	encrypt(modified_file_content);
 
   	if (write(ff2, modified_file_content, strlen(modified_file_content)) <= 0)
 	{
@@ -722,6 +746,7 @@ int edit_account(char* string, struct thData tdL)
 	output_sender("SUCCES on getting the data!", tdL);
 
 	close(ff2);
+	chdir("..");
 	return 0;
 }
 
