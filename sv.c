@@ -30,12 +30,14 @@ int quit_var = 0; // changes to 1 in case of quit() call
 
 /* Func prototypes */
 
+int show_account(char*, struct thData, int);
 void output_sender(char*, struct thData);
+void list_accounts(char*, struct thData);
 int register_user(char*, struct thData);
 int edit_account(char*, struct thData);
-int show_account(char*, struct thData, int);
 int add_account(char*, struct thData);
 int login_user(char*, struct thData);
+void list_categories(struct thData);
 static void *treat(void *);
 void respond(void *);
 int finder(char*);
@@ -260,6 +262,23 @@ void respond(void *arg)
 	  		char* acc_data = (char*)malloc(BUFF_SIZE);
 	  	}
     }
+    else if (strncmp(msg, "list_categories", 15) == 0 && tdL.is_logged_in != -1)
+    {
+    	printf ("[Thread %d] list_categories() called\n",tdL.idThread);
+    	list_categories(tdL);
+    }
+    else if (strncmp(msg, "list_accounts", 13) == 0 && tdL.is_logged_in != -1)
+    {
+    	printf ("[Thread %d] list_accounts() called\n",tdL.idThread);
+    	char* p = (char*)malloc(BUFF_SIZE);
+
+	  	p = strtok(msg, ":");
+	  	p = strtok(NULL, ":");
+	  	char* categ = (char*)malloc(strlen(p)-1);
+	  	strncpy(categ, p, strlen(p)-1);
+
+    	list_accounts(categ, tdL);
+    }
     else
     {	
     	output_sender("Invalid command! Review the help menu!", tdL);
@@ -356,7 +375,7 @@ int register_user(char* string, struct thData tdL)
 
 	chdir(uname);
 
-	int fd = open("login_data.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
+	int fd = open(".login_data.txt", O_WRONLY | O_APPEND | O_CREAT, 0644);
 
 	/* generating login-data file */
 
@@ -420,7 +439,7 @@ int login_user(char* string, struct thData tdL)
 		return -1;
 	}
 
-	int fd = open("login_data.txt", O_RDONLY);
+	int fd = open(".login_data.txt", O_RDONLY);
 
 	char* login_data_buff = (char*)malloc(BUFF_SIZE);
 
@@ -656,8 +675,6 @@ int edit_account(char* string, struct thData tdL)
 
 	int ff1 = open(title, O_RDONLY);
 
-	//int ff = open(title, O_WRONLY | O_CREAT , 0666);
-
 	char* file_content = (char*)malloc(BUFF_SIZE);
 	char* modified_file_content = (char*)malloc(BUFF_SIZE);
 	strcpy(modified_file_content, "This file was modified!\n");
@@ -682,9 +699,7 @@ int edit_account(char* string, struct thData tdL)
   			strcpy(new_line, field);
   			strcat(new_line, ": ");
   			strcat(new_line, content);
-  			//strcat(new_line, "\n");
   			strcat(modified_file_content, new_line);
-  			//strcat(modified_file_content, "\n");
   		}
   		else
   		{
@@ -708,4 +723,48 @@ int edit_account(char* string, struct thData tdL)
 
 	close(ff2);
 	return 0;
+}
+
+void list_accounts(char* string, struct thData tdL)
+{
+	char* output = (char*)malloc(BUFF_SIZE);
+	strcpy(output, "Accounts:\n");
+	DIR *d;
+    struct dirent *dir;
+    d = opendir(string);
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+        	if (strncmp(dir->d_name, ".", 1) != 0)
+        	{
+        		strcat(output, dir->d_name);
+        		strcat(output, "\n");
+			}
+        }
+        closedir(d);
+    }
+    output_sender(output, tdL);
+}
+
+void list_categories(struct thData tdL)
+{
+	char* output = (char*)malloc(BUFF_SIZE);
+	strcpy(output, "Categories:\n");
+	DIR *d;
+    struct dirent *dir;
+    d = opendir(".");
+    if (d)
+    {
+        while ((dir = readdir(d)) != NULL)
+        {
+        	if (strncmp(dir->d_name, ".", 1) != 0)
+        	{
+        		strcat(output, dir->d_name);
+        		strcat(output, "\n");
+			}
+        }
+        closedir(d);
+    }
+    output_sender(output, tdL);
 }

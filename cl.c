@@ -135,12 +135,16 @@ void help_menu()
 	printf("\n--- Welcome to the password_manager app! To START, enter one of the commands below: ---\n");
 	printf("--- (Remember!): To start using the app, you must register or log in first! ---\n");
 	printf("--- AVALIBLE COMMANDS: ---\n");
-	printf("--- <register> <log in> <reset_password> <add_account> <show_accounts> <edit_account> ---\n");
+	printf("--- <register> <log in> <reset_password> ---\n");
+	printf("--- <add_account> <show_accounts> <edit_account> ---\n");
+	printf("--- <list_categories> <list_accounts> ---\n");
 	printf("--- SYNTAX OF THE COMMANDS: ---\n");
 	printf("--- For <register> and <log in>: command:username;password ---\n");
 	printf("--- For <reset_password>: command:username ---\n");
 	printf("--- For <add_account>: command:category ---\n");
 	printf("--- For <show_account> and <edit_account>: command:category;title ---\n");
+	printf("--- For <list_categories>: command ---\n");
+	printf("--- For <list_accounts>: command:category ---\n");
 	printf("--- HOW TO USE: ---\n");
 	printf("--- <add_acount> will create a file with the following fields (in this order): ---\n");
 	printf("--- category, account title, username, password, url, notes. ---\n");
